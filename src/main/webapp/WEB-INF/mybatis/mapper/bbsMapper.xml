@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="bbs">
+	<!-- insert update에서 null을 허용하는 경우에는 반드시 jdbcType을 명시해야 한다. -->
+	<insert id="insertBoard" parameterType="com.sp.bbs.Board">
+		INSERT INTO bbs(num, subject, name, spec, content)
+		VALUES(bbs_seq.NEXTVAL, #{subject}, #{name}, #{spec, jdbcType=VARCHAR}, #{content})
+	</insert>
+
+	<sql id="where-list">
+		<if test="searchKey=='all'">
+			(INSTR(subject, #{searchValue}) &gt;= 1
+			OR DBMS_LOB.INSTR(content, #{searchValue}) &gt;= 1)
+		</if>
+		
+		<if test="searchKey=='subject'">
+			INSTR(subject, #{searchValue}) &gt;= 1
+		</if>
+		
+		<if test="searchKey=='name'">
+			INSTR(name, #{searchValue}) &gt;= 1
+		</if>
+			
+		<if test="searchKey=='content'">
+			DBMS_LOB.INSTR(content, #{searchValue}) &gt;= 1
+		</if>
+						
+		<if test="searchKey=='created'">
+			(TO_CHAR(created, 'yyyy-mm-dd') = #{searchValue}
+			OR TO_CHAR(created, 'yyyymmdd') = #{searchValue})
+		</if>
+	</sql>
+	
+	<sql id="where-spec">
+		<if test="testSpec != null and listSpec.size != 0">
+			AND
+			(
+			<foreach collection="listSpec" item="spec" index="index" open="" close="" separator=" OR ">
+				INSTR(spec, #{spec}) &gt; 0
+			</foreach>
+			)
+		</if>
+	</sql>
+		
+	<select id="boardList" parameterType="map" resultType="com.sp.bbs.Board">
+		SELECT * FROM (
+			SELECT ROWNUM rnum, tb.* FROM (
+				SELECT num, subject, name, spec, content, hitcount, TO_CHAR(created, 'YYYY-MM-DD') created
+				FROM bbs
+				<where>
+					<if test="searchValue != null and searchValue != ''">
+						<include refid="where-list"/>
+					</if>
+					<include refid="where-spec"/>
+				</where>				
+				ORDER BY num DESC) tb
+			 WHERE ROWNUM &lt;= #{end} 
+		) WHERE rnum &gt;= #{start}
+	</select>
+	
+	<select id="dataCount" resultType="Integer" parameterType="map">
+		SELECT NVL(COUNT(*), 0) FROM bbs
+		<where>
+			<if test="searchValue != null and searchValue != ''">
+				<include refid="where-list"/>
+			</if>
+			<include refid="where-spec"/>
+		</where>
+	</select>
+	
+	<update id="updateHitCount" parameterType="Integer">
+		UPDATE bbs SET hitCount = hitCount + 1
+		WHERE num = #{num}
+	</update>
+	
+	<select id="readBoard" parameterType="Integer" resultType="com.sp.bbs.Board">
+		SELECT num, name, subject, content, spec, hitCount, created
+		FROM bbs
+		WHERE num = #{num}
+	</select>
+	
+	<select id="preReadBoard" parameterType="map" resultType="com.sp.bbs.Board">
+		SELECT tb.* FROM (
+			SELECT num, subject FROM bbs
+			<where>
+				<if test="searchValue != null and searchValue != ''">
+					<include refid="where-list"/>
+				</if>
+				<include refid="where-spec"/>
+				AND (num &gt; #{num})
+			</where>
+			ORDER BY num ASC
+		) tb WHERE ROWNUM = 1
+	</select>
+	
+	<select id="nextReadBoard" parameterType="map" resultType="com.sp.bbs.Board">
+		SELECT tb.* FROM (
+			SELECT num, subject FROM bbs
+			<where>
+				<if test="searchValue != null and searchValue != ''">
+					<include refid="where-list"/>
+				</if>
+				<include refid="where-spec"/>
+				AND (num &lt; #{num})
+			</where>
+			ORDER BY num DESC
+		) tb WHERE ROWNUM = 1
+	</select>
+	
+	<update id="updateBoard">
+		UPDATE bbs SET subject = #{subject}, name = #{name}, spec = #{spec, jdbcType=VARCHAR}, content = #{content}
+		WHERE num = #{num}
+	</update>
+	
+	<delete id="deleteBoard">
+		DELETE FROM bbs WHERE num = #{num}
+	</delete>
+</mapper>
